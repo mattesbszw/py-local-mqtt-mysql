@@ -2,26 +2,29 @@ import mysql.connector as mariadb
 import paho.mqtt.client as mqtt 
 import json
 
+### hier Ihre RPI-Adresse eintragen
 MQTT_SERVER_IP = "10.10.10.X"
 MQTT_PORT = 1883
 
-MQTT_USER_NAME = "XXX"
-MQTT_USER_PASS = "XXX"
+### Datenbank-Verbindung anpassen
+MYSQL_HOST = "bszw.usw..."
+MYSQL_USER = "wit11x"
+MYSQL_PASS = "XXX"
+MYSQL_SCHEME = "wit11x_nachname"
+
+### MQTT-Zugangsdaten sollten so passen
+MQTT_USER_NAME = "student"
+MQTT_USER_PASS = "geheim"
 MQTT_CLIENT_ID = "py-mqtt-mysql"
 MQTT_TOPIC = "esp32/sensors"
-
-MYSQL_HOST = "192.168.X.X"
-MYSQL_USER = "XXX"
-MYSQL_PASS = "XXX"
-MYSQL_SCHEME = "XXX"
 
 class ThingSpeakPayload(object):
     def __init__(self, j):
         self.__dict__ = json.loads(j) # deserializes binary json string from subscription into a dictionary
 ## end class definition
 
-def on_connect(client, userdata, flags, rc):  # The callback for when the client connects to the broker
-    print("Connected with result code {0}".format(str(rc)))
+def on_connect(client, userdata, flags, reason_code, properties):  # The callback for when the client connects to the broker
+    print("Connected: {0}".format(reason_code))  # Print result of connection attempt
     client.subscribe(MQTT_TOPIC)
 ## end on_connect function
 
@@ -32,29 +35,46 @@ def on_message(client, userdata, msg):  # The callback for when a PUBLISH messag
 
     obj = ThingSpeakPayload(msg.payload)
 
-    if obj.field1=='nan':
-        obj.field1='NULL'
+    # vom Broker gelieferte Werte 1:1 auf der Konsole ausgeben
+    print(obj.channel_id)
+    print(obj.created_at)
+    print(obj.field1)
+    print(obj.field2)
+    print(obj.field3)
 
-    if obj.field2==-127:
+    # Error-Handling
+    # field1: ds-sensor => worst case -127.0
+    # field2 und field: dht => worst case 'nan' (not a number)
+    if obj.field1=='-127.0':
+        obj.field1='NULL'
+    if obj.field2=='nan':
         obj.field2='NULL'
+    if obj.field3=='nan':
+        obj.field3='NULL'
         
     mytimestamp = obj.created_at.replace("T", " ")
     mytimestamp = mytimestamp.replace("Z", "")
 
-    
-    sql = """INSERT INTO itt_sensors (ds, dht, created) VALUES (%s,%s,%s)"""
-    args = (obj.field1, obj.field2, mytimestamp)
-    
+    # schöneres Bilden des SQL-Statements
+    sql = """INSERT INTO itt_sensors (ds_temp, 
+                         dht_temp, 
+                         dht_hum, 
+                         created_at) 
+             VALUES ({0}, 
+                     {1}, 
+                     {2}, 
+                     '{3}');""".format(obj.field1, obj.field2, obj.field3, mytimestamp)
+      
     print(sql)
-    print(args)
     
-    # Save Data into DB Table
+    # execute: Speichern der Werte
+    # commit: DB-Transaktion beenden und Änderungen übernehmen
     try:
-        cursor.execute(sql, args)
+        cursor.execute(sql)
     except mariadb.Error as error:
         print("Error: {}".format(error))
 
-    mariadb_connection.commit()    
+    mariadb_connection.commit()        
 ## end on_message function
     
 
@@ -63,8 +83,8 @@ def on_message(client, userdata, msg):  # The callback for when a PUBLISH messag
 mariadb_connection = mariadb.connect(user=MYSQL_USER, password=MYSQL_PASS, host=MYSQL_HOST, database=MYSQL_SCHEME)
 cursor = mariadb_connection.cursor()
 
-client = mqtt.Client(MQTT_CLIENT_ID) #create new instance
-client.username_pw_set(username=MQTT_USER_NAME,password=MQTT_USER_PASS)
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, MQTT_CLIENT_ID) #create new instance
+client.username_pw_set(username=MQTT_USER,password=MQTT_PASSWORD)
 
 client.on_connect = on_connect  # Define callback function for successful connection
 client.on_message = on_message  # Define callback function for receipt of a message
