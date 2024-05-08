@@ -10,7 +10,7 @@ MQTT_PORT = 1883
 MYSQL_HOST = "bszw.usw..."
 MYSQL_USER = "wit11x"
 MYSQL_PASS = "XXX"
-MYSQL_SCHEME = "wit11x_nachname"
+MYSQL_SCHEMA = "wit11x_nachname"
 
 ### MQTT-Zugangsdaten sollten so passen
 MQTT_USER = "student"
@@ -48,7 +48,7 @@ def on_message(client, userdata, msg):  # The callback for when a PUBLISH messag
 
 def insert_sensor_values_into_mysql(channelID, ds_temp, dht_temp, dht_hum, created_at):
 
-	mariadb_connection = mariadb.connect(user=MYSQL_USER, password=MYSQL_PASS, host=MYSQL_SERVER, database=MYSQL_SCHEMA)
+	mariadb_connection = mariadb.connect(user=MYSQL_USER, password=MYSQL_PASS, host=MYSQL_HOST, database=MYSQL_SCHEMA)
 	cursor = mariadb_connection.cursor()
 
 	# Error-Handling
